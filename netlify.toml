@@ -1,0 +1,28 @@
+# HistoAtlas — static site, no build step.
+#
+# Publish directory is the repository root: index.html, app.css, app.js,
+# data.js and cc.js are served from "/", and the 166 handout plates from
+# "/img/". That is exactly what app.js expects (imgSrc = "img/" + file) and
+# matches the live site at https://histo-atlas.netlify.app/
+#
+# The app uses hash routing (#/slide/1, #/system/ENDOCRINE), so no SPA
+# rewrite is needed: every route lives under "/".
+
+[build]
+  publish = "."
+
+# Plate images are cache-busted by the ?v= stamp in app.js (IMG_V), so they can
+# be cached for a week. If you replace a plate image, bump IMG_V in app.js
+# (and the ?v= stamps on the <link>/<script> tags in index.html).
+[[headers]]
+  for = "/img/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"
+
+# Friendlier handling of typos / stale links: show the app shell with a 404
+# status instead of Netlify's default page. Real files are never shadowed, so
+# this only fires for paths that do not exist.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 404
