@@ -129,6 +129,7 @@ body.searching .searchrow{translate:0 0}
 .nav-item.active::before{content:""; position:absolute; left:0; top:7px; bottom:7px; width:3px; border-radius:9px; background:var(--vio)}
 .nav-item .num{flex:0 0 auto; min-width:34px; height:22px; padding:0 6px; border-radius:7px; display:grid; place-items:center; font-family:var(--mono); font-size:11px; font-weight:700; background:var(--vio-soft); color:var(--vio-ink); border:1px solid var(--vio-line); margin-top:1px}
 .nav-item.active .num{background:var(--vio); color:#fff; border-color:var(--vio)}
+.nav-item .tt,.nav-item .st{display:block}
 .nav-item .tt{font-size:12.8px; font-weight:600; line-height:1.35; color:var(--ink)}
 .nav-item .st{font-size:11px; color:var(--muted); margin-top:1px}
 .nav-item .tags{display:flex; gap:5px; margin-top:4px; flex-wrap:wrap}
@@ -434,21 +435,26 @@ html[data-layout="phone"] .fnav .btn.sysb{max-width:none}
 
 /* ---------- study notes: tabbed theory, headline points, details on tap ---------- */
 .study > header,#q-stheory > header{flex-wrap:wrap}
-.dmode{margin-left:auto; display:inline-flex; flex:0 0 auto; background:var(--panel2); border:1px solid var(--line); border-radius:999px; padding:3px}
-.dmode button{border:0; background:none; padding:5px 12px; border-radius:999px; font-size:12px; font-weight:700; color:var(--muted); cursor:pointer; transition:.14s var(--ease)}
+.dmode{position:relative; margin-left:auto; display:inline-grid; grid-template-columns:1fr 1fr; flex:0 0 auto; background:var(--panel2); border:1px solid var(--line); border-radius:999px; padding:3px}
+.dmode::before{content:""; position:absolute; top:3px; bottom:3px; left:3px; width:calc(50% - 3px); border-radius:999px; background:var(--panel); box-shadow:0 1px 3px rgba(30,36,48,.16); transition:transform .3s var(--ease)}
+.dmode[data-on="full"]::before{transform:translateX(100%)}
+.dmode button{position:relative; z-index:1; border:0; background:none; padding:5px 12px; border-radius:999px; font-size:12px; font-weight:700; color:var(--muted); cursor:pointer; transition:.14s var(--ease)}
 .dmode button:hover{color:var(--ink)}
-.dmode button.on{background:var(--panel); color:var(--vio-ink); box-shadow:0 1px 3px rgba(30,36,48,.14)}
-.stabs{display:flex; gap:2px; margin:0 -26px 18px; padding:0 22px; border-bottom:1px solid var(--line); overflow-x:auto; scrollbar-width:none}
+.dmode button.on{color:var(--vio-ink)}
+.stabs{position:relative; display:flex; gap:2px; margin:0 -26px 18px; padding:0 22px; border-bottom:1px solid var(--line); overflow-x:auto; scrollbar-width:none}
 .stabs::-webkit-scrollbar{display:none}
 .stab{flex:0 0 auto; display:inline-flex; align-items:center; gap:7px; border:0; background:none; padding:10px 12px 11px; margin-bottom:-1px; border-bottom:2.5px solid transparent; font-size:13.5px; font-weight:700; color:var(--muted); cursor:pointer; white-space:nowrap; transition:color .14s}
 .stab:hover{color:var(--ink)}
 .stab .n{font-size:10.5px; font-weight:800; padding:1px 7px; border-radius:99px; background:var(--panel2); color:var(--muted)}
-.stab.on{color:var(--ink); border-bottom-color:var(--k,var(--vio))}
+.stab.on{color:var(--ink)}
+.stab .n{transition:background .25s, color .25s}
+.sind{position:absolute; left:0; bottom:0; height:2.5px; width:0; border-radius:3px 3px 0 0; background:var(--k,var(--vio)); pointer-events:none}
+.stabs.ready .sind{transition:transform .34s var(--ease), width .34s var(--ease), background .3s}
 .stab.on .n{background:var(--k,var(--vio)); color:#fff}
 .spanel{animation:fadeDown .22s var(--ease)}
 .spanel-h{margin:0 0 10px; padding-left:10px; border-left:3px solid var(--k,var(--vio)); font-size:12px; color:var(--muted); line-height:1.45}
 .spanel-h b{color:var(--ink); font-size:12.5px}
-.study > header > div,#q-stheory > header > div{flex:1 1 220px; min-width:0}
+.study > header > div:not(.dmode),#q-stheory > header > div:not(.dmode){flex:1 1 220px; min-width:0}
 .pts{display:flex; flex-direction:column; gap:1px}
 .pt{border-radius:10px; transition:background .15s}
 .pt-h{position:relative; display:flex; gap:10px; align-items:flex-start; padding:6px 10px 6px 26px; font-size:14.2px}
@@ -462,8 +468,11 @@ html[data-layout="phone"] .fnav .btn.sysb{max-width:none}
 .pt-more{flex:0 0 auto; display:inline-flex; align-items:center; gap:2px; margin-top:2px; padding:1px 5px 1px 8px; border-radius:99px; font-size:11px; font-weight:800; color:var(--vio-ink); background:var(--vio-soft); border:1px solid var(--vio-line); line-height:1.5}
 .pt-more svg{width:11px; height:11px; transition:transform .2s var(--ease)}
 .pt.open .pt-more svg{transform:rotate(90deg)}
-.pt-d{display:none; margin:0 10px 0 13px; padding:2px 4px 10px 16px; border-left:2px solid var(--vio-line)}
-.pt.open > .pt-d{display:block; animation:fadeDown .22s var(--ease)}
+.pt-d{display:grid; grid-template-rows:0fr; transition:grid-template-rows .32s var(--ease)}
+.pt-in{min-height:0; overflow:hidden; visibility:hidden; opacity:0; transition:opacity .22s var(--ease), visibility 0s linear .32s}
+.pt-pad{margin:0 10px 0 13px; padding:2px 4px 10px 16px; border-left:2px solid var(--vio-line)}
+.pt.open > .pt-d{grid-template-rows:1fr}
+.pt.open > .pt-d > .pt-in{visibility:visible; opacity:1; transition:opacity .28s var(--ease) .06s, visibility 0s}
 .dt{font-size:13.6px; padding:3px 0}
 .dt.l2{padding-left:14px; font-size:13px; color:var(--muted); position:relative}
 .dt.l2::before{content:""; position:absolute; left:3px; top:12px; width:4px; height:4px; border-radius:99px; background:var(--teal)}
@@ -474,7 +483,9 @@ html[data-layout="phone"] .fnav .btn.sysb{max-width:none}
 .flow li:not(:last-child)::after{content:""; position:absolute; left:9.5px; top:24px; bottom:-3px; width:1.5px; background:var(--vio-line)}
 .flow .then{display:none}
 /* full detail: everything open, nothing to tap */
-.dscope.full .pt-d{display:block; border-left-color:var(--line2)}
+.dscope.full .pt-d{grid-template-rows:1fr}
+.dscope.full .pt-in{visibility:visible; opacity:1; transition:opacity .28s var(--ease), visibility 0s}
+.dscope.full .pt-pad{border-left-color:var(--line2)}
 .dscope.full .pt-more{display:none}
 .dscope.full .pt.has-d > .pt-h{cursor:default}
 .dscope.full .pt.has-d:hover{background:none}
@@ -484,11 +495,128 @@ html[data-layout="phone"] .stab{padding:9px 9px 10px; font-size:13px}
 html[data-layout="phone"] .dmode{margin-left:0}
 html[data-layout="phone"] .pt-h{font-size:13.8px; padding:6px 6px 6px 22px}
 html[data-layout="phone"] .pt-h::before{left:8px}
-html[data-layout="phone"] .pt-d{margin:0 4px 0 10px; padding-left:12px}
+html[data-layout="phone"] .pt-pad{margin:0 4px 0 10px; padding-left:12px}
 @media print{
   .study .spanel[hidden]{display:block}
-  .pt-d{display:block!important}
+  .pt-d{grid-template-rows:1fr!important}
+  .pt-in{visibility:visible!important; opacity:1!important}
   .stabs,.dmode,.pt-more{display:none!important}
 }
-.dmode button.on{background:var(--vio-soft)}
+
 .pill.cc.active{color:#fff}
+
+
+/* ============ motion & polish ============ */
+/* top bar: shadow once the page scrolls, reading-progress line along its bottom edge */
+.topbar{transition:box-shadow .25s var(--ease), background .25s}
+body.scrolled .topbar{box-shadow:0 6px 24px -14px rgba(30,36,48,.35)}
+.readbar{position:absolute; left:0; right:0; bottom:-1px; height:2.5px; transform:scaleX(0); transform-origin:0 50%; background:linear-gradient(90deg,var(--vio),var(--eos)); pointer-events:none; will-change:transform}
+/* back to top */
+.totop{position:fixed; right:22px; bottom:calc(24px + env(safe-area-inset-bottom, 0px)); z-index:64; width:44px; height:44px; border-radius:99px; display:grid; place-items:center; border:1px solid var(--line2); background:var(--panel); color:var(--vio-ink); box-shadow:var(--shadow-lg); cursor:pointer; opacity:0; transform:translateY(14px) scale(.9); pointer-events:none; transition:opacity .25s var(--ease), transform .3s var(--ease), background .15s}
+.totop.show{opacity:1; transform:none; pointer-events:auto}
+.totop:hover{background:var(--vio-soft)}
+.totop:hover svg{animation:nudgeUp .6s var(--ease)}
+@keyframes nudgeUp{40%{transform:translateY(-3px)}}
+html[data-layout="phone"] .totop{right:14px; bottom:calc(84px + env(safe-area-inset-bottom, 0px)); width:40px; height:40px}
+
+/* scroll reveal (only added by JS when motion is allowed) */
+.rv{opacity:0; transform:translateY(16px)}
+.rv.in{opacity:1; transform:none; transition:opacity .55s var(--ease) var(--rd,0ms), transform .6s var(--ease) var(--rd,0ms)}
+.rv.in.fig:hover{transform:translateY(-3px)}
+
+/* buttons: soft sheen on the primary action */
+.btn.primary{position:relative; overflow:hidden}
+.btn.primary::after{content:""; position:absolute; inset:0; background:linear-gradient(110deg,transparent 30%,rgba(255,255,255,.38) 50%,transparent 70%); transform:translateX(-120%); transition:transform .7s var(--ease); pointer-events:none}
+.btn.primary:hover::after{transform:translateX(120%)}
+.btn.pop,.ck.pop{animation:popIn .42s var(--ease)}
+@keyframes popIn{0%{transform:scale(1)}35%{transform:scale(1.035)}100%{transform:scale(1)}}
+.ck.pop .box{animation:tick .42s var(--ease)}
+@keyframes tick{0%{transform:scale(.6)}55%{transform:scale(1.22)}100%{transform:scale(1)}}
+.ck input:checked + .box svg path{stroke-dasharray:24; stroke-dashoffset:0; transition:stroke-dashoffset .3s var(--ease) .05s}
+.ck input:not(:checked) + .box svg path{stroke-dasharray:24; stroke-dashoffset:24}
+
+/* confetti */
+.burst{position:fixed; z-index:400; width:0; height:0; pointer-events:none}
+.burst i{position:absolute; left:-3px; top:-4px; width:6px; height:9px; border-radius:2px; animation:confetti .9s cubic-bezier(.15,.7,.3,1) forwards}
+@keyframes confetti{0%{transform:translate(0,0) rotate(0) scale(.4); opacity:1}70%{opacity:1}100%{transform:translate(var(--x),calc(var(--y) + 26px)) rotate(var(--r)) scale(1); opacity:0}}
+
+/* gallery: space reserved, shimmer while loading, fade in, gentle zoom on hover */
+.fig{isolation:isolate}
+.fig:not(.ok){background:linear-gradient(100deg,var(--panel2) 30%,var(--panel) 50%,var(--panel2) 70%) 0 0/300% 100%; animation:shimmer 1.4s linear infinite}
+.fig img{opacity:0; background:transparent; transition:opacity .45s var(--ease), transform .5s var(--ease)}
+.fig img.ok{opacity:1; background:#fff}
+.fig:hover img.ok{transform:scale(1.025)}
+@keyframes shimmer{to{background-position:-150% 0}}
+
+/* home hero: drifting H&E "cells" */
+.hero{background-size:180% 180%; animation:heroShift 22s ease-in-out infinite alternate}
+@keyframes heroShift{0%{background-position:0% 40%}100%{background-position:100% 60%}}
+.home-hero > *:not(.cells){position:relative; z-index:1}
+.cells{position:absolute; right:-30px; top:-20px; width:min(46%,420px); height:calc(100% + 40px); pointer-events:none; z-index:0}
+.cells i{position:absolute; border-radius:50%; opacity:.5;
+  background:
+    radial-gradient(circle at 46% 44%, rgba(84,58,140,.75) 0 19%, rgba(84,58,140,.25) 21%, transparent 23%),
+    radial-gradient(circle, rgba(232,140,172,.55) 0 58%, rgba(232,140,172,.18) 66%, transparent 70%);
+  animation:drift 14s ease-in-out infinite alternate}
+.cells i:nth-child(1){width:120px;height:120px; right:40px; top:30px}
+.cells i:nth-child(2){width:74px;height:74px; right:170px; top:110px; animation-duration:17s; animation-delay:-4s}
+.cells i:nth-child(3){width:92px;height:92px; right:16px; top:180px; animation-duration:19s; animation-delay:-8s}
+.cells i:nth-child(4){width:48px;height:48px; right:150px; top:22px; animation-duration:13s; animation-delay:-2s}
+.cells i:nth-child(5){width:60px;height:60px; right:250px; top:200px; animation-duration:21s; animation-delay:-11s; opacity:.35}
+.cells i:nth-child(6){width:38px;height:38px; right:110px; top:250px; animation-duration:15s; animation-delay:-6s}
+.cells i:nth-child(7){width:30px;height:30px; right:290px; top:70px; animation-duration:18s; animation-delay:-9s; opacity:.3}
+@keyframes drift{0%{transform:translate(0,0) rotate(0) scale(1)}50%{transform:translate(-10px,8px) rotate(25deg) scale(1.04)}100%{transform:translate(8px,-10px) rotate(-15deg) scale(.97)}}
+html[data-theme="dark"] .cells i{opacity:.32}
+html[data-layout="phone"] .cells{width:70%; opacity:.55}
+html[data-layout="phone"] .cells i:nth-child(n+5){display:none}
+
+/* home stats: progress ring tile */
+.stat-tiles{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}
+.tile .n small{font-size:16px; color:var(--muted); font-weight:600}
+.tile.progt{grid-column:span 2; display:flex; align-items:center; gap:14px}
+.tile .sub2{font-size:11.5px; color:var(--muted); margin-top:2px}
+.ring{width:64px; height:64px; flex:0 0 auto; transform:rotate(-90deg)}
+.ring circle{fill:none; stroke-width:7}
+.ring .bg{stroke:var(--line)}
+.ring .fg{stroke:var(--vio); stroke-linecap:round; stroke-dasharray:var(--c); stroke-dashoffset:var(--off); transition:stroke-dashoffset 1.2s var(--ease) .15s}
+.rv:not(.in) .ring .fg{stroke-dashoffset:var(--c)}
+.home-how{margin-top:0}
+.syscard .sc-bar{display:block; height:4px; border-radius:99px; background:var(--line); overflow:hidden; margin-top:8px}
+.syscard .sc-bar i{display:block; height:100%; border-radius:99px; background:linear-gradient(90deg,var(--vio),var(--ok)); transition:width 1s var(--ease) .2s}
+.syscard.rv:not(.in) .sc-bar i{width:0!important}
+.syscard .sc-go svg{transition:transform .2s var(--ease)}
+.syscard:hover .sc-go svg{transform:translateX(4px)}
+
+/* sidebar & bottom nav niceties */
+.nav-item .num{transition:transform .2s var(--ease), background .2s, color .2s}
+.nav-item:hover .num{transform:translateX(2px)}
+.nav-item.active::before{animation:barIn .3s var(--ease)}
+@keyframes barIn{from{transform:scaleY(0)}to{transform:none}}
+.botnav button.on{background:var(--vio-soft)}
+
+/* lightbox: plate eases between zoom levels, glides to the structure, ring appears on arrival */
+#lb-wrap{transition:transform .38s var(--ease)}
+#lb-wrap.snap,.lb-stage.drag #lb-wrap{transition:none}
+.lb-overlay.open #lb-img{animation:lbIn .34s var(--ease)}
+#lb-img.pop{animation:fadeIn .3s var(--ease)}
+@keyframes lbIn{from{opacity:0; transform:scale(.94)}to{opacity:1; transform:none}}
+@keyframes fadeIn{from{opacity:.2}to{opacity:1}}
+.lb-overlay.closing{animation:fadeOut .18s var(--ease) forwards}
+@keyframes fadeOut{to{opacity:0}}
+.lb-marker,.lb-mlabel{opacity:0; transition:opacity .2s var(--ease)}
+.lb-stage:not(.drag) .lb-marker,.lb-stage:not(.drag) .lb-mlabel{transition:opacity .2s var(--ease), left .38s var(--ease), top .38s var(--ease)}
+.lb-marker.on{opacity:1}
+.lb-mlabel.on{opacity:1; animation:labelIn .3s var(--ease)}
+@keyframes labelIn{from{transform:translate(-50%,-80%) scale(.9)}to{transform:translate(-50%,-100%)}}
+
+/* toast springs up */
+.toast{transition:opacity .25s var(--ease), translate .35s cubic-bezier(.2,1.4,.4,1)}
+
+@media print{
+  .rv{opacity:1!important; transform:none!important}
+  .cells,.totop,.readbar{display:none!important}
+  .fig img{opacity:1!important}
+}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; transition-delay:0s!important; scroll-behavior:auto!important}
+}

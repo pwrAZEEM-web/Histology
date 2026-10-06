@@ -54,7 +54,7 @@
   /* ---------- state ---------- */
   const LS = "histo_atlas_v1";
   const _saved = (() => { try { return JSON.parse(localStorage.getItem(LS) || "null"); } catch (e) { return null; } })();
-  let state = Object.assign({ reviewed: {}, checks: {}, theme: null, view: "auto", detail: "key", studyTab: null }, _saved || {});
+  let state = Object.assign({ reviewed: {}, checks: {}, theme: null, view: "auto", detail: "key", studyTab: null, last: null }, _saved || {});
   if (!state.theme) state.theme = (window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
   const save = () => localStorage.setItem(LS, JSON.stringify(state));
   document.documentElement.dataset.theme = state.theme;
@@ -103,6 +103,79 @@
       return `<li class="${lvl}${proc}">${it.html}</li>`;
     }).join("") + "</ul>";
   }
+
+  /* ---------- motion helpers (all skipped under prefers-reduced-motion) ---------- */
+  const RM = window.matchMedia ? matchMedia("(prefers-reduced-motion: reduce)") : { matches: false };
+  function countUp(el) {
+    const to = +el.dataset.to, t0 = performance.now(), dur = 950;
+    const step = (t) => {
+      const p = Math.min(1, (t - t0) / dur);
+      el.textContent = Math.round(to * (1 - Math.pow(1 - p, 3)));
+      if (p < 1) requestAnimationFrame(step);
+    };
+    el.textContent = "0";
+    requestAnimationFrame(step);
+  }
+  const revealIO = "IntersectionObserver" in window ? new IntersectionObserver((es) => {
+    let k = 0;
+    es.forEach((e) => {
+      if (!e.isIntersecting) return;
+      const el = e.target;
+      el.style.setProperty("--rd", Math.min(k++, 7) * 55 + "ms");
+      el.classList.add("in");
+      revealIO.unobserve(el);
+      $$("[data-to]", el).forEach(countUp);
+    });
+  }, { rootMargin: "0px 0px -5% 0px" }) : null;
+  // fade/slide sections in as they scroll into view
+  function reveal(root) {
+    if (!revealIO || RM.matches) return;
+    $$(".sect, .quick > .qcard, .home-how, .grid2 > .qcard, .tile, .syscard, .gal > .fig", root).forEach((el) => {
+      el.classList.add("rv"); revealIO.observe(el);
+    });
+  }
+  // plates fade in once decoded instead of popping in
+  function settleImgs(root) {
+    $$(".fig img", root).forEach((im) => {
+      const done = () => { im.classList.add("ok"); im.parentElement.classList.add("ok"); };
+      if (im.complete && im.naturalWidth) done();
+      else { im.addEventListener("load", done, { once: true }); im.addEventListener("error", done, { once: true }); }
+    });
+  }
+  // small confetti burst from an element (checklist complete, slide reviewed)
+  function burst(el) {
+    if (RM.matches || !el) return;
+    const r = el.getBoundingClientRect(), box = document.createElement("div");
+    box.className = "burst";
+    box.style.left = r.left + r.width / 2 + "px"; box.style.top = r.top + r.height / 2 + "px";
+    const cols = ["var(--vio)", "var(--eos)", "var(--amber)", "var(--ok)"];
+    for (let i = 0; i < 18; i++) {
+      const s = document.createElement("i"), a = (i / 18) * Math.PI * 2 + Math.random() * 0.35, d = 36 + Math.random() * 38;
+      s.style.setProperty("--x", Math.cos(a) * d + "px"); s.style.setProperty("--y", Math.sin(a) * d + "px");
+      s.style.setProperty("--r", Math.round(Math.random() * 360) + "deg");
+      s.style.background = cols[i % cols.length];
+      box.appendChild(s);
+    }
+    document.body.appendChild(box);
+    setTimeout(() => box.remove(), 950);
+  }
+  function popRow(el) { if (!el) return; el.classList.remove("pop"); void el.offsetWidth; el.classList.add("pop"); }
+  // sliding underline under the active study tab
+  function moveInd(tabs) {
+    const on = $(".stab.on", tabs), ind = $(".sind", tabs);
+    if (!on || !ind) return;
+    ind.style.width = on.offsetWidth + "px";
+    ind.style.transform = `translateX(${on.offsetLeft}px)`;
+    ind.style.setProperty("--k", on.style.getPropertyValue("--k"));
+  }
+  function initInds(root) {
+    $$(".stabs", root).forEach((t) => {
+      moveInd(t);
+      requestAnimationFrame(() => t.classList.add("ready"));
+    });
+  }
+  window.addEventListener("resize", () => $$(".stabs").forEach(moveInd));
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => $$(".stabs").forEach(moveInd));
 
   /* ---------- study notes: headline points, details one tap away ---------- */
   const STUDY = ["background", "howitworks", "appearance", "embryology", "staining"];
@@ -171,17 +244,18 @@
       const proc = isThen(p.head.html) ? " proc" : "";
       return `<div class="pt${n ? " has-d" : ""}${proc}">
         <div class="pt-h"${n ? ' role="button" tabindex="0" aria-expanded="false"' : ""}><span class="pt-tx">${proc ? thenify(p.head.html) : leadify(p.head.html)}</span>${n ? `<span class="pt-more" title="Show the ${n} detail${n > 1 ? "s" : ""}">${n} ${I.chev}</span>` : ""}</div>
-        ${n ? `<div class="pt-d">${detailHtml(p.kids)}</div>` : ""}</div>`;
+        ${n ? `<div class="pt-d"><div class="pt-in"><div class="pt-pad">${detailHtml(p.kids)}</div></div></div>` : ""}</div>`;
     }).join("") + "</div>";
   }
   const nPoints = (items) => items.filter((it, i) => it.lvl === 0 || i === 0).length;
-  const dmodeHtml = () => `<div class="dmode" role="group" aria-label="Detail level">
+  const dmodeHtml = () => `<div class="dmode" role="group" aria-label="Detail level" data-on="${state.detail === "full" ? "full" : "key"}">
       <button data-d="key" class="${state.detail === "full" ? "" : "on"}" title="Headlines only — tap a point to open its details">Key points</button>
       <button data-d="full" class="${state.detail === "full" ? "on" : ""}" title="Every detail open">Full detail</button></div>`;
   function applyDetail() {
     const full = state.detail === "full";
     $$(".dscope").forEach((el) => el.classList.toggle("full", full));
     $$(".dmode button").forEach((b) => b.classList.toggle("on", b.dataset.d === (full ? "full" : "key")));
+    $$(".dmode").forEach((d) => { d.dataset.on = full ? "full" : "key"; });
     if (!full) $$(".pt.open").forEach((p) => { p.classList.remove("open"); $(".pt-h", p).setAttribute("aria-expanded", "false"); });
   }
   function wireDmode(root) {
@@ -208,7 +282,7 @@
       <div class="stabs" role="tablist">` + keys.map((k) => {
         const n = secs.filter((x) => x.key === k).reduce((a, g) => a + nPoints(g.items), 0);
         return `<button class="stab${k === cur ? " on" : ""}" role="tab" aria-selected="${k === cur}" data-k="${k}" style="--k:${SEC_META[k].c}">${STUDY_TAB[k]}<span class="n">${n}</span></button>`;
-      }).join("") + `</div>`;
+      }).join("") + `<span class="sind" aria-hidden="true"></span></div>`;
     keys.forEach((k) => {
       const gs = secs.filter((x) => x.key === k);
       const nTot = gs.reduce((a, g) => a + g.items.length, 0), nPt = gs.reduce((a, g) => a + nPoints(g.items), 0);
@@ -229,8 +303,10 @@
       state.studyTab = b.dataset.k; save();
       $$(".stab", card).forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-selected", on); });
       $$(".spanel", card).forEach((p) => { p.hidden = p.dataset.k !== b.dataset.k; });
+      moveInd($(".stabs", card));
       if (card.getBoundingClientRect().top < 60) card.scrollIntoView({ block: "start" });
     }));
+    initInds(root);
     wireDmode(root);
   }
   document.addEventListener("click", (e) => {
@@ -296,6 +372,11 @@
     $$("#sidebar .nav-item").forEach((b) => b.classList.toggle("active",
       b.dataset.route === route && (route !== "slide" || b.dataset.id === id)));
     $$("#sidebar .sys-head").forEach((b) => b.classList.toggle("active", (route === "system" && b.dataset.sys === id) || (route === "slide" && SYS_CTX && b.dataset.sys === SYS_CTX)));
+    const act = $("#sidebar .nav-item.active");
+    if (act && document.documentElement.dataset.layout !== "phone") {
+      const sb = $("#sidebar"), r = act.getBoundingClientRect(), sr = sb.getBoundingClientRect();
+      if (r.top < sr.top + 40 || r.bottom > sr.bottom - 20) sb.scrollTop += r.top - sr.top - sr.height / 3;
+    }
     const bn = (route === "slide" || route === "system") ? "slides" : route;
     $$("#botnav button").forEach((b) => b.classList.toggle("on", b.dataset.r === bn));
   }
@@ -304,6 +385,7 @@
   function renderSlide(id) {
     const s = byId[id];
     if (!s) return renderHome();
+    if (state.last !== id) { state.last = id; save(); }
     const idx = order.indexOf(id);
     let prev = idx > 0 ? byId[order[idx - 1]] : null;
     let next = idx < order.length - 1 ? byId[order[idx + 1]] : null;
@@ -398,7 +480,7 @@
         <figure class="fig${im.w / im.h > 1.9 ? " wide" : ""}" data-g="${id}" data-i="${i}">
           <span class="tech">${esc(im.technique)}</span>
           ${im.anns && im.anns.length ? `<span class="nid">${im.anns.length} IDs</span>` : ""}
-          <img loading="lazy" src="${imgSrc(im.file)}" alt="${esc(im.caption)}">
+          <img loading="lazy" src="${imgSrc(im.file)}" alt="${esc(im.caption)}"${im.w && im.h ? ` style="aspect-ratio:${im.w}/${im.h}"` : ""}>
           <figcaption class="cap"><b>${esc(im.caption)}</b></figcaption>
         </figure>`).join("") + `</div>`;
     }
@@ -462,6 +544,7 @@
       b.classList.toggle("on", !!state.reviewed[id]);
       b.innerHTML = I.check + (state.reviewed[id] ? " Reviewed — tap to undo" : " Mark as reviewed");
       toast(state.reviewed[id] ? "Slide " + s.label + " marked as reviewed ✓" : "Review flag removed");
+      if (state.reviewed[id]) { burst(b); popRow(b); }
     });
     if (prev) { $("#p-prev").addEventListener("click", () => go("slide", prev.id)); $("#f-prev").addEventListener("click", () => go("slide", prev.id)); }
     if (next) { $("#p-next").addEventListener("click", () => go("slide", next.id)); $("#f-next").addEventListener("click", () => go("slide", next.id)); }
@@ -488,12 +571,16 @@
         $("#q-structures .cnt").textContent = done + "/" + items.length;
         $(".check-head span").textContent = done + " of " + items.length + " identified";
         $(".check-head .pbar i").style.width = (done / items.length) * 100 + "%";
+        if (cb.checked) popRow(cb.closest(".ck"));
+        if (cb.checked && done === items.length) { burst($("#q-structures .cnt")); toast("All " + items.length + " structures identified 🎉"); }
         renderSidebar(); markActive("slide", id);
       }));
       $("#ck-reset").addEventListener("click", () => { state.checks[id] = []; save(); renderSlide(id); });
     }
     $$(".acc > button").forEach((b) => b.addEventListener("click", () => b.parentElement.classList.toggle("open")));
     wireStudy($("#main"));
+    settleImgs($("#main"));
+    reveal($("#main"));
     setupSpy();
   }
 
@@ -521,9 +608,18 @@
     SYS_CTX = null;
     const sys = [];
     D.slides.forEach((s) => { if (!sys.includes(s.system)) sys.push(s.system); });
+    const structOf = (s) => (s.sections.find((x) => x.key === "structures") || { items: [] }).items;
+    const doneOf = (s) => { const c = state.checks[s.id] || []; return structOf(s).filter((_, i) => c[i]).length; };
+    const nImg = D.slides.reduce((a, s) => a + s.images.length, 0);
+    const nAnn = D.slides.reduce((a, s) => a + s.images.reduce((b, im) => b + (im.anns ? im.anns.length : 0), 0), 0);
+    const nSt = D.slides.reduce((a, s) => a + structOf(s).length, 0);
+    const nTick = D.slides.reduce((a, s) => a + doneOf(s), 0);
+    const p = progress();
+    const C = 2 * Math.PI * 30, frac = p.tot ? p.rev / p.tot : 0;
+    const last = state.last && byId[state.last];
     $("#main").innerHTML = `<div class="wrap">
-      <div class="hero">
-        <div class="ghnum">57</div>
+      <div class="hero home-hero">
+        <div class="cells" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
         <div class="kick">Oral-exam companion · Histology III</div>
         <h2>HistoAtlas — every slide, every structure,<br>every line of theory in one place</h2>
         <p style="max-width:640px;color:var(--muted);margin:4px 0 0">
@@ -531,15 +627,25 @@
           theoretical background, mechanisms, histological appearance, embryology, an interactive ID checklist and
           staining notes — plus the <b>labeled handout plates</b> and the handouts' own theory for every topic.</p>
         <div class="acts">
-          <button class="btn primary" onclick="location.hash='#/slide/1'">Start with slide 1 ${I.arrr}</button>
+          ${last ? `<button class="btn primary" onclick="location.hash='#/slide/${last.id}'">Continue · slide ${esc(last.label)} ${I.arrr}</button>
+          <button class="btn" onclick="location.hash='#/slide/1'">Start from slide 1</button>`
+          : `<button class="btn primary" onclick="location.hash='#/slide/1'">Start with slide 1 ${I.arrr}</button>`}
           <button class="btn" onclick="location.hash='#/stains'">★ Stains at a glance</button>
           <button class="btn ghost" onclick="var e=document.getElementById('syscards'); if(e) e.scrollIntoView({behavior:'smooth',block:'start'})">Study by system ↓</button>
         </div>
       </div>
       <div class="stat-tiles">
-        <div class="tile"><div class="n">57</div><div class="l">exam slides</div></div>
+        <div class="tile"><div class="n" data-to="57">57</div><div class="l">exam slides</div></div>
+        <div class="tile"><div class="n" data-to="${nImg}">${nImg}</div><div class="l">labeled plates</div></div>
+        <div class="tile"><div class="n" data-to="${nAnn}">${nAnn}</div><div class="l">ID-trainer markers</div></div>
+        <div class="tile"><div class="n" data-to="${sys.length}">${sys.length}</div><div class="l">body systems</div></div>
+        <div class="tile progt">
+          <svg class="ring" viewBox="0 0 72 72" style="--c:${C.toFixed(1)};--off:${(C * (1 - frac)).toFixed(1)}"><circle class="bg" cx="36" cy="36" r="30"/><circle class="fg" cx="36" cy="36" r="30"/></svg>
+          <div><div class="n"><span data-to="${p.rev}">${p.rev}</span><small> / ${p.tot}</small></div><div class="l">slides reviewed</div>
+          <div class="sub2">${nTick} of ${nSt} structures ticked</div></div>
+        </div>
       </div>
-      <div>
+      <div class="home-how">
         <div class="qcard"><h4><span class="dot" style="background:var(--vio)"></span>How each tab is built</h4>
           <ul class="spot">
             <li>${I.target}<span><b>Quick look</b> — one-sentence “what it is” + the three things that let you spot it.</span></li>
@@ -555,17 +661,20 @@
         <span class="cnt">${sys.length} systems</span></header>
         <div class="syscards" id="syscards">${sys.map((sy) => {
           const sl = D.slides.filter((s2) => s2.system === sy);
-          const nst = sl.reduce((a, s2) => a + (s2.sections.find((x) => x.key === "structures") || { items: [] }).items.length, 0);
+          const nst = sl.reduce((a, s2) => a + structOf(s2).length, 0);
+          const nd = sl.reduce((a, s2) => a + doneOf(s2), 0);
           return `<button class="syscard" data-sys="${esc(sy)}">
             <span class="sc-top"><span class="sc-n">${sl.length}</span><span class="sc-l">slide${sl.length > 1 ? "s" : ""}</span></span>
             <b>${esc(sy)}</b>
-            <span class="sc-m">${nst} structures to identify</span>
+            <span class="sc-m">${nst} structures to identify${nd ? ` · ${nd} done` : ""}</span>
+            <span class="sc-bar"><i style="width:${nst ? (nd / nst) * 100 : 0}%"></i></span>
             <span class="sc-go">Study this system ${I.arrr}</span></button>`;
         }).join("")}</div></div>
     </div>`;
     $$("#syscards .syscard").forEach((b) => b.addEventListener("click", () => {
       location.hash = "#/system/" + encodeURIComponent(b.dataset.sys);
     }));
+    reveal($("#main"));
     markActive("home");
   }
 
@@ -577,22 +686,34 @@
       <div class="grid2">${D.stains.map((st) => `
         <div class="qcard"><h4><span class="dot" style="background:var(--eos)"></span>${esc(st.name)}</h4>
         ${bullets(st.items)}</div>`).join("")}</div></div>`;
+    reveal($("#main"));
     markActive("stains");
   }
 
   /* ---------- lightbox ---------- */
   let lb = { g: null, i: 0, scale: 1, x: 0, y: 0, ann: null, w: 0, h: 0 };
+  let annT;
+  function markerOn(on) { $("#lb-marker").classList.toggle("on", on); $("#lb-mlabel").classList.toggle("on", on); }
   function openLB(g, i, ann) {
     lb = { g, i, scale: 1, x: 0, y: 0, ann: ann || null, w: 0, h: 0 };
     const im = byId[g].images[i];
-    const img = $("#lb-img");
-    img.onload = () => { const w = $("#lb-wrap"); lb.w = w.offsetWidth; lb.h = w.offsetHeight; if (lb.ann) placeAnn(); else applyLB(); };
+    const img = $("#lb-img"), w = $("#lb-wrap");
+    clearTimeout(annT); markerOn(false);
+    w.classList.add("snap"); applyLB();
+    // once the plate is laid out, glide from the full view to the structure
+    img.onload = () => {
+      lb.w = w.offsetWidth; lb.h = w.offsetHeight;
+      requestAnimationFrame(() => {
+        w.classList.remove("snap");
+        if (lb.ann) annT = setTimeout(placeAnn, RM.matches ? 0 : 160); else applyLB();
+      });
+    };
     img.src = imgSrc(im.file);
     setLBCap();
     $("#lb-prev").style.display = $("#lb-next").style.display = "";
+    $("#lb").classList.remove("closing");
     $("#lb").classList.add("open");
-    const w = $("#lb-wrap"); lb.w = w.offsetWidth; lb.h = w.offsetHeight;
-    if (lb.ann) placeAnn(); else applyLB();
+    if (img.complete && img.naturalWidth) img.onload();
   }
   function showImg(src, capHtml) {
     lb = { g: null, i: 0, scale: 1, x: 0, y: 0, ann: null, w: 0, h: 0, single: src };
@@ -601,6 +722,7 @@
     img.src = src;
     $("#lb-cap").innerHTML = capHtml;
     $("#lb-prev").style.display = $("#lb-next").style.display = "none";
+    $("#lb").classList.remove("closing");
     $("#lb").classList.add("open");
     applyLB();
   }
@@ -612,14 +734,16 @@
       (lb.ann ? ` · <b style="color:var(--vio)">${esc(lb.ann.t)}</b>` : "");
   }
   function placeAnn() {
+    if (!lb.ann) return;
     const w = $("#lb-wrap");
-    if (!lb.w) { lb.w = w.offsetWidth; lb.h = w.offsetHeight; }
-    w.style.transform = "none";
-    lb.w = w.offsetWidth; lb.h = w.offsetHeight;
+    lb.w = w.offsetWidth; lb.h = w.offsetHeight;   // layout size, unaffected by the transform
     lb.scale = 2.8;
     lb.x = (0.5 - lb.ann.x) * lb.w * lb.scale;
     lb.y = (0.5 - lb.ann.y) * lb.h * lb.scale;
+    markerOn(false);
     applyLB();
+    clearTimeout(annT);
+    annT = setTimeout(() => markerOn(true), RM.matches ? 0 : 380);
   }
   function applyLB() {
     $("#lb-wrap").style.transform = `translate(${lb.x}px,${lb.y}px) scale(${lb.scale})`;
@@ -629,20 +753,28 @@
       const cx = st.clientWidth / 2, cy = st.clientHeight / 2;
       const ox = lb.x + (lb.ann.x - 0.5) * lb.w * lb.scale;
       const oy = lb.y + (lb.ann.y - 0.5) * lb.h * lb.scale;
-      mk.style.display = ""; ml.style.display = "";
+      mk.style.display = "block"; ml.style.display = "block";
       mk.style.left = (cx + ox) + "px"; mk.style.top = (cy + oy) + "px";
       ml.style.left = (cx + ox) + "px"; ml.style.top = (cy + oy - 26) + "px";
       ml.textContent = lb.ann.t;
     } else { mk.style.display = "none"; ml.style.display = "none"; }
   }
-  function closeLB() { $("#lb").classList.remove("open"); }
+  function closeLB() {
+    const o = $("#lb");
+    if (!o.classList.contains("open") || o.classList.contains("closing")) return;
+    clearTimeout(annT);
+    if (RM.matches) { o.classList.remove("open"); return; }
+    o.classList.add("closing");
+    setTimeout(() => o.classList.remove("open", "closing"), 180);
+  }
   function lbNav(d) {
     if (!lb.g) return;
     const n = byId[lb.g].images.length;
     lb.i = (lb.i + d + n) % n;
     lb.scale = 1; lb.x = 0; lb.y = 0; lb.ann = null;
+    clearTimeout(annT); markerOn(false);
     const img = $("#lb-img");
-    img.onload = () => { const w = $("#lb-wrap"); lb.w = w.offsetWidth; lb.h = w.offsetHeight; applyLB(); };
+    img.onload = () => { const w = $("#lb-wrap"); lb.w = w.offsetWidth; lb.h = w.offsetHeight; applyLB(); popRow(img); };
     img.src = imgSrc(byId[lb.g].images[lb.i].file);
     setLBCap(); applyLB();
   }
@@ -772,6 +904,7 @@
     $$("[data-gotab]").forEach((b) => b.addEventListener("click", () => go("slide", b.dataset.gotab)));
     $$(".acc > button").forEach((b) => b.addEventListener("click", () => b.parentElement.classList.toggle("open")));
     wireDmode($("#main"));
+    reveal($("#main"));
     $$(".cklist input").forEach((cb) => cb.addEventListener("change", () => {
       const list = cb.closest(".cklist");
       const sid = list.dataset.sid;
@@ -782,6 +915,8 @@
       const d = items.filter((_, i) => arr[i]).length;
       const cntEl = $('[data-cnt="' + sid + '"]');
       if (cntEl) cntEl.textContent = d + "/" + items.length;
+      if (cb.checked) popRow(cb.closest(".ck"));
+      if (cb.checked && d === items.length) { burst(cntEl); toast("Slide " + byId[sid].label + ": all structures identified 🎉"); }
       const dn = slides.reduce((a, s) => a + doneOf(s), 0);
       $("#sys-cnt").textContent = dn + "/" + nStruct;
       $("#sys-lbl").textContent = dn + " of " + nStruct + " identified";
@@ -797,13 +932,28 @@
   function go(route, id) { location.hash = route === "slide" ? "#/slide/" + id : "#/" + route; }
   function route() {
     const h = location.hash || "#/home";
-    window.scrollTo({ top: 0 });
+    window.scrollTo({ top: 0, behavior: "instant" });
     if (h.startsWith("#/slide/")) renderSlide(h.slice(8));
     else if (h.startsWith("#/system/")) renderSystem(decodeURIComponent(h.slice(9)));
     else if (h === "#/stains") renderStains();
     else renderHome();
   }
-  window.addEventListener("hashchange", route);
+  window.addEventListener("hashchange", () => { route(); onScroll(); });
+
+  /* ---------- scroll-linked chrome: top-bar shadow, reading progress, back-to-top ---------- */
+  let scrollRaf = 0;
+  function onScroll() {
+    if (scrollRaf) return;
+    scrollRaf = requestAnimationFrame(() => {
+      scrollRaf = 0;
+      const y = window.scrollY, max = document.documentElement.scrollHeight - window.innerHeight;
+      document.body.classList.toggle("scrolled", y > 4);
+      $("#readbar").style.transform = `scaleX(${max > 0 ? Math.min(1, y / max) : 0})`;
+      $("#totop").classList.toggle("show", y > 900);
+    });
+  }
+  window.addEventListener("scroll", onScroll, { passive: true });
+  $("#totop").addEventListener("click", () => window.scrollTo({ top: 0, behavior: RM.matches ? "auto" : "smooth" }));
 
   /* ---------- toast ---------- */
   let toastT;
@@ -917,4 +1067,5 @@
   renderSidebar();
   applyLayout();
   route();
+  onScroll();
 })();

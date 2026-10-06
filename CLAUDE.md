@@ -94,7 +94,7 @@ ID checklists, staining notes) plus 166 labeled handout plates with click-to-ide
 ## Cache-busting (bump these when you ship assets)
 
 - `IMG_V` in `app.js` (currently `"260928b"`) → bump after **replacing** a plate image.
-- `?v=...` on the `<link>`/`<script>` tags in `index.html` (currently `261006a`) → bump after
+- `?v=...` on the `<link>`/`<script>` tags in `index.html` (currently `261006b`) → bump after
   changing `app.css` / `app.js` / `data.js` / `cc.js`.
 
 ## Verify before finishing — all three must pass
@@ -114,6 +114,14 @@ python3 -m http.server 8080        # http://localhost:8080
 
 Also sanity-check that `netlify.toml` still parses as TOML if you touch it.
 
+## Motion
+
+Animations live at the end of `app.css` ("motion & polish") plus small helpers in `app.js`
+(`reveal`, `burst`, `countUp`, `moveInd`, `settleImgs`). Every one is skipped under
+`prefers-reduced-motion` (JS checks `RM.matches`; CSS has a global reduced-motion override), and
+scroll-reveal only adds its hiding class from JS, so content is never hidden if it doesn't run.
+Keep new motion on `transform`/`opacity` so it stays smooth on phones.
+
 ## External dependencies (intentionally not in the repo)
 
 - **Google Fonts** — Fraunces, Plus Jakarta Sans, Caveat, loaded from `fonts.googleapis.com`
@@ -124,6 +132,6 @@ Also sanity-check that `netlify.toml` still parses as TOML if you touch it.
 ## User state (don't break existing progress)
 
 Reviewed slides, ID checklists, theme, layout, the study-notes detail level (`detail`: `key`/`full`)
-and the last study tab (`studyTab`) are stored in `localStorage` under the key
+the last study tab (`studyTab`) and the last opened slide (`last`, for "Continue") are stored in `localStorage` under the key
 `histo_atlas_v1`. If you change the shape of `state`, migrate it rather than resetting it —
 students have real checklist progress in there.
