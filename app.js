@@ -54,7 +54,7 @@
   /* ---------- state ---------- */
   const LS = "histo_atlas_v1";
   const _saved = (() => { try { return JSON.parse(localStorage.getItem(LS) || "null"); } catch (e) { return null; } })();
-  let state = Object.assign({ reviewed: {}, checks: {}, theme: null, view: "auto" }, _saved || {});
+  let state = Object.assign({ reviewed: {}, checks: {}, theme: null, view: "auto", detail: "key", studyTab: null }, _saved || {});
   if (!state.theme) state.theme = (window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
   const save = () => localStorage.setItem(LS, JSON.stringify(state));
   document.documentElement.dataset.theme = state.theme;
@@ -103,6 +103,144 @@
       return `<li class="${lvl}${proc}">${it.html}</li>`;
     }).join("") + "</ul>";
   }
+
+  /* ---------- study notes: headline points, details one tap away ---------- */
+  const STUDY = ["background", "howitworks", "appearance", "embryology", "staining"];
+  const STUDY_TAB = { background: "Theory", howitworks: "Processes", appearance: "Appearance", embryology: "Embryology", staining: "Staining" };
+  const STUDY_SUB = {
+    background: "Location, structure & function the examiner expects",
+    howitworks: "Step-by-step mechanisms behind every term",
+    appearance: "What you actually see through the oculars",
+    embryology: "Origins, timing & clinical correlates",
+    staining: "Why the colours look the way they look",
+  };
+  const plain = (h) => String(h).replace(/<[^>]+>/g, "");
+  const isThen = (h) => /^Then /i.test(plain(h));
+  // wrap a short "Term:" opener in a span so topics can be scanned by eye (text unchanged)
+  function leadify(html) {
+    let txt = 0, depth = 0, i = 0;
+    for (; i < html.length; i++) {
+      const c = html[i];
+      if (c === "<") { const j = html.indexOf(">", i); if (j < 0) return html; i = j; continue; }
+      if (c === "(") depth++;
+      else if (c === ")") depth--;
+      else if (c === ":" && depth <= 0) break;
+      if (++txt > 48) return html;
+    }
+    if (i >= html.length || txt < 3 || !/^(\s|<|$)/.test(html.slice(i + 1))) return html;
+    let end = i + 1;
+    while (html.startsWith("</", end)) end = html.indexOf(">", end) + 1;
+    const head = html.slice(0, end);
+    const opened = (head.match(/<[a-z][^>]*>/gi) || []).length, closed = (head.match(/<\/[^>]+>/g) || []).length;
+    if (opened !== closed) return html;
+    return `<span class="lead">${head}</span>${html.slice(end)}`;
+  }
+  const thenify = (html) => html.replace(/^Then /, '<span class="then">Then </span>');
+  function toPoints(items) {
+    const pts = [];
+    items.forEach((it) => {
+      if (it.lvl === 0 || !pts.length) pts.push({ head: it, kids: [] });
+      else pts[pts.length - 1].kids.push(it);
+    });
+    return pts;
+  }
+  function detailHtml(kids) {
+    let h = "", i = 0;
+    while (i < kids.length) {
+      const it = kids[i];
+      if (isThen(it.html)) {
+        const lv = it.lvl;
+        const run = [];
+        while (i < kids.length && ((kids[i].lvl === lv && isThen(kids[i].html)) || (run.length && kids[i].lvl > lv))) {
+          if (kids[i].lvl > lv) run[run.length - 1].sub.push(kids[i]);
+          else run.push({ it: kids[i], sub: [] });
+          i++;
+        }
+        h += `<ol class="flow${lv === 2 ? " l2" : ""}">` + run.map((r) =>
+          `<li>${thenify(r.it.html)}${r.sub.map((x) => `<div class="dt l2">${leadify(x.html)}</div>`).join("")}</li>`).join("") + "</ol>";
+        continue;
+      }
+      h += `<div class="dt${it.lvl === 2 ? " l2" : ""}">${leadify(it.html)}</div>`;
+      i++;
+    }
+    return h;
+  }
+  function pointsHtml(items) {
+    return '<div class="pts">' + toPoints(items).map((p) => {
+      const n = p.kids.length;
+      const proc = isThen(p.head.html) ? " proc" : "";
+      return `<div class="pt${n ? " has-d" : ""}${proc}">
+        <div class="pt-h"${n ? ' role="button" tabindex="0" aria-expanded="false"' : ""}><span class="pt-tx">${proc ? thenify(p.head.html) : leadify(p.head.html)}</span>${n ? `<span class="pt-more" title="Show the ${n} detail${n > 1 ? "s" : ""}">${n} ${I.chev}</span>` : ""}</div>
+        ${n ? `<div class="pt-d">${detailHtml(p.kids)}</div>` : ""}</div>`;
+    }).join("") + "</div>";
+  }
+  const nPoints = (items) => items.filter((it, i) => it.lvl === 0 || i === 0).length;
+  const dmodeHtml = () => `<div class="dmode" role="group" aria-label="Detail level">
+      <button data-d="key" class="${state.detail === "full" ? "" : "on"}" title="Headlines only — tap a point to open its details">Key points</button>
+      <button data-d="full" class="${state.detail === "full" ? "on" : ""}" title="Every detail open">Full detail</button></div>`;
+  function applyDetail() {
+    const full = state.detail === "full";
+    $$(".dscope").forEach((el) => el.classList.toggle("full", full));
+    $$(".dmode button").forEach((b) => b.classList.toggle("on", b.dataset.d === (full ? "full" : "key")));
+    if (!full) $$(".pt.open").forEach((p) => { p.classList.remove("open"); $(".pt-h", p).setAttribute("aria-expanded", "false"); });
+  }
+  function wireDmode(root) {
+    $$(".dmode button", root).forEach((b) => b.addEventListener("click", () => {
+      if (state.detail === b.dataset.d) return;
+      state.detail = b.dataset.d; save(); applyDetail();
+      toast(state.detail === "full" ? "Showing every detail" : "Showing key points — tap a point for its details");
+    }));
+  }
+  function togglePoint(h) {
+    if (h.closest(".dscope.full")) return;
+    const p = h.parentElement;
+    const open = p.classList.toggle("open");
+    h.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+  function studyCard(secs) {
+    const keys = STUDY.filter((k) => secs.some((x) => x.key === k));
+    if (!keys.length) return "";
+    const cur = keys.includes(state.studyTab) ? state.studyTab : keys[0];
+    let h = `<section class="sect study dscope${state.detail === "full" ? " full" : ""}" id="q-study"><header>
+        <span class="ico" style="background:var(--vio-soft);color:var(--vio)">${I.book}</span>
+        <div><h3>Study notes</h3><div class="sub">One topic at a time — headlines first, tap any point for its details</div></div>
+        ${dmodeHtml()}</header>
+      <div class="stabs" role="tablist">` + keys.map((k) => {
+        const n = secs.filter((x) => x.key === k).reduce((a, g) => a + nPoints(g.items), 0);
+        return `<button class="stab${k === cur ? " on" : ""}" role="tab" aria-selected="${k === cur}" data-k="${k}" style="--k:${SEC_META[k].c}">${STUDY_TAB[k]}<span class="n">${n}</span></button>`;
+      }).join("") + `</div>`;
+    keys.forEach((k) => {
+      const gs = secs.filter((x) => x.key === k);
+      const nTot = gs.reduce((a, g) => a + g.items.length, 0), nPt = gs.reduce((a, g) => a + nPoints(g.items), 0);
+      h += `<div class="spanel" role="tabpanel" data-k="${k}"${k === cur ? "" : " hidden"}>
+        <div class="spanel-h" style="--k:${SEC_META[k].c}"><b>${SEC_META[k].t}</b> <span>${STUDY_SUB[k]} · ${nPt} point${nPt > 1 ? "s" : ""}${nTot > nPt ? `, ${nTot - nPt} details` : ""}</span></div>`;
+      gs.forEach((g) => {
+        const pm = g.label.match(/\((.+)\)\s*$/);
+        const lbl = k === "appearance" && pm ? pm[1] : "";
+        h += `<div class="appearance-block">${lbl ? `<h5>${esc(lbl)}</h5>` : ""}${pointsHtml(g.items)}</div>`;
+      });
+      h += `</div>`;
+    });
+    return h + `</section>`;
+  }
+  function wireStudy(root) {
+    $$(".stab", root).forEach((b) => b.addEventListener("click", () => {
+      const card = b.closest(".study");
+      state.studyTab = b.dataset.k; save();
+      $$(".stab", card).forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-selected", on); });
+      $$(".spanel", card).forEach((p) => { p.hidden = p.dataset.k !== b.dataset.k; });
+      if (card.getBoundingClientRect().top < 60) card.scrollIntoView({ block: "start" });
+    }));
+    wireDmode(root);
+  }
+  document.addEventListener("click", (e) => {
+    const h = e.target.closest && e.target.closest(".pt.has-d > .pt-h");
+    if (h && !e.target.closest("abbr,a")) togglePoint(h);
+  });
+  document.addEventListener("keydown", (e) => {
+    if ((e.key === "Enter" || e.key === " ") && e.target.matches && e.target.matches(".pt.has-d > .pt-h")) { e.preventDefault(); togglePoint(e.target); }
+  });
+
   function stainOf(title) {
     const m = title.match(/\(([^)]*)\)\s*$/);
     return m ? m[1] : "";
@@ -187,12 +325,8 @@
     if (annImgs.length) pills += `<a class="pill primary" href="#q-id">ID trainer (${annImgs.reduce((a, o) => a + o.im.anns.length, 0)})</a>`;
     const cc = ccCfg(id);
     if (cc && (cc.url || ccClean(cc.spots && cc.spots.reduce((a, sp) => a.concat(ccClean(sp.urls)), [])).length)) pills += `<a class="pill cc" href="#q-cc">High-res ↗</a>`;
-    if (groups("background").length) pills += `<a class="pill" href="#q-background">Theory</a>`;
-    if (groups("howitworks").length) pills += `<a class="pill" href="#q-howitworks">Processes</a>`;
-    if (groups("appearance").length) pills += `<a class="pill" href="#q-appearance">Appearance</a>`;
-    if (groups("embryology").length) pills += `<a class="pill" href="#q-embryology">Embryology</a>`;
+    if (STUDY.some((k) => groups(k).length)) pills += `<a class="pill" href="#q-study">Study notes</a>`;
     if (groups("structures").length) pills += `<a class="pill" href="#q-structures">ID checklist</a>`;
-    if (groups("staining").length) pills += `<a class="pill" href="#q-staining">Staining</a>`;
     if (s.notes.length) pills += `<a class="pill" href="#q-notes">Handout notes</a>`;
 
     let h = `<div class="wrap">
@@ -270,26 +404,8 @@
     }
     h += `</section>`;
 
-    /* regular sections */
-    const sectBlock = (key, anchor, extra) => {
-      const gs = groups(key);
-      if (!gs.length) return "";
-      const m = SEC_META[key];
-      let inner = "";
-      gs.forEach((g, gi) => {
-        const pm = g.label.match(/\((.+)\)\s*$/);
-        const lbl = pm ? pm[1] : "";
-        inner += `<div class="appearance-block">${key === "appearance" && lbl ? `<h5>${esc(lbl)}</h5>` : ""}${bullets(g.items)}</div>`;
-      });
-      return `<section class="sect" id="q-${anchor}"><header>
-        <span class="ico" style="background:${m.bg};color:${m.c}">${m.i}</span>
-        <div><h3>${m.t}</h3><div class="sub">${extra || ""}</div></div>
-        <span class="cnt">${gs.reduce((a, g) => a + g.items.length, 0)} points</span></header>${inner}</section>`;
-    };
-    h += sectBlock("background", "background", "Location, structure & function the examiner expects");
-    h += sectBlock("howitworks", "howitworks", "Step-by-step mechanisms behind every term");
-    h += sectBlock("appearance", "appearance", "What you actually see through the oculars");
-    h += sectBlock("embryology", "embryology", "Origins, timing & clinical correlates");
+    /* study notes: theory, processes, appearance, embryology, staining — one tab at a time */
+    h += studyCard(secs);
 
     /* checklist */
     const stc = groups("structures");
@@ -310,7 +426,6 @@
           <label class="ck"><input type="checkbox" data-i="${i}" ${chk[i] ? "checked" : ""}><span class="box">${I.checkS}</span><span class="txt">${it.html}${ex ? `<span class="cc-inline">${ex}</span>` : ""}</span></label>`;
         }).join("") + `</div></section>`;
     }
-    h += sectBlock("staining", "staining", "Why the colours look the way they look");
 
     /* handout notes */
     if (s.notes.length) {
@@ -378,6 +493,7 @@
       $("#ck-reset").addEventListener("click", () => { state.checks[id] = []; save(); renderSlide(id); });
     }
     $$(".acc > button").forEach((b) => b.addEventListener("click", () => b.parentElement.classList.toggle("open")));
+    wireStudy($("#main"));
     setupSpy();
   }
 
@@ -629,21 +745,21 @@
     }
 
     const THEORY = ["background", "howitworks", "appearance", "embryology", "staining"];
-    h += `<section class="sect" id="q-stheory"><header>
+    h += `<section class="sect dscope${state.detail === "full" ? " full" : ""}" id="q-stheory"><header>
         <span class="ico" style="background:${SEC_META.background.bg};color:${SEC_META.background.c}">${I.gear}</span>
         <div><h3>Theory — every slide of the system</h3><div class="sub">Collapsed by default — open only what you need</div></div>
-        <span class="cnt">${slides.length} blocks</span></header>`;
+        ${dmodeHtml()}</header>`;
     slides.forEach((s, i) => {
       const secs = s.sections.filter((x) => THEORY.includes(x.key));
       if (!secs.length) return;
       h += `<div class="acc" data-acc="t${i}"><button>${I.chev}<span class="numdot">${esc(s.label)}</span> ${esc(s.title)}</button>
-        <div class="body">` + secs.map((g) => `<h5 class="th-h">${esc(SEC_META[g.key].t)}</h5>${bullets(g.items)}`).join("") + `</div></div>`;
+        <div class="body">` + secs.map((g) => `<h5 class="th-h">${esc(SEC_META[g.key].t)}</h5>${pointsHtml(g.items)}`).join("") + `</div></div>`;
     });
     h += `</section>`;
 
     h += `<div class="fnav">
       <button class="btn" id="f-home2"><span>${I.arrl}</span><span style="text-align:left"><small>back to</small>Home</span></button>
-      <button class="btn" id="f-nextsys"><span style="text-align:right"><small>next system</small>${esc(nextSys)}</span>${I.arrr}</span></button>
+      <button class="btn" id="f-nextsys"><span style="text-align:right"><small>next system</small>${esc(nextSys)}</span>${I.arrr}</button>
     </div></div>`;
 
     $("#main").innerHTML = h;
@@ -655,6 +771,7 @@
     $("#f-nextsys").addEventListener("click", () => { location.hash = "#/system/" + encodeURIComponent(nextSys); });
     $$("[data-gotab]").forEach((b) => b.addEventListener("click", () => go("slide", b.dataset.gotab)));
     $$(".acc > button").forEach((b) => b.addEventListener("click", () => b.parentElement.classList.toggle("open")));
+    wireDmode($("#main"));
     $$(".cklist input").forEach((cb) => cb.addEventListener("change", () => {
       const list = cb.closest(".cklist");
       const sid = list.dataset.sid;

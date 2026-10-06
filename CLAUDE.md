@@ -61,6 +61,12 @@ ID checklists, staining notes) plus 166 labeled handout plates with click-to-ide
 
 - **`sections[].key`** is one of: `background`, `howitworks`, `appearance`, `embryology`,
   `structures`, `staining`. `app.js` keys icons/colours off these names.
+- **How theory renders (Study notes card):** the five non-checklist section keys are shown as tabs
+  in one card (`studyCard` in `app.js`). Each `lvl: 0` item is a headline point; the `lvl: 1/2` items after
+  it are its details, collapsed behind a count button unless "Full detail" is on. Consecutive items starting
+  with "Then " render as a numbered step flow (the word is kept in the DOM, hidden visually). A short
+  "Term:" opener is wrapped in `.lead` for scanning. All of this is presentation only — keep authoring
+  items exactly as before.
 - **`items[].lvl`** controls nesting: `0` / `1` / `2` for bullet depth. In the `structures`
   section (the ID checklist) `lvl` is the string `"check"` instead — those items are ticked off
   in localStorage.
@@ -88,7 +94,7 @@ ID checklists, staining notes) plus 166 labeled handout plates with click-to-ide
 ## Cache-busting (bump these when you ship assets)
 
 - `IMG_V` in `app.js` (currently `"260928b"`) → bump after **replacing** a plate image.
-- `?v=...` on the `<link>`/`<script>` tags in `index.html` (currently `260928c`) → bump after
+- `?v=...` on the `<link>`/`<script>` tags in `index.html` (currently `261006a`) → bump after
   changing `app.css` / `app.js` / `data.js` / `cc.js`.
 
 ## Verify before finishing — all three must pass
@@ -117,6 +123,7 @@ Also sanity-check that `netlify.toml` still parses as TOML if you touch it.
 
 ## User state (don't break existing progress)
 
-Reviewed slides, ID checklists, theme and layout are stored in `localStorage` under the key
+Reviewed slides, ID checklists, theme, layout, the study-notes detail level (`detail`: `key`/`full`)
+and the last study tab (`studyTab`) are stored in `localStorage` under the key
 `histo_atlas_v1`. If you change the shape of `state`, migrate it rather than resetting it —
 students have real checklist progress in there.
