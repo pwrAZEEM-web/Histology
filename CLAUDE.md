@@ -94,7 +94,7 @@ ID checklists, staining notes) plus 166 labeled handout plates with click-to-ide
 ## Cache-busting (bump these when you ship assets)
 
 - `IMG_V` in `app.js` (currently `"260928b"`) → bump after **replacing** a plate image.
-- `?v=...` on the `<link>`/`<script>` tags in `index.html` (currently `261006b`) → bump after
+- `?v=...` on the `<link>`/`<script>` tags in `index.html` (currently `261007a`) → bump after
   changing `app.css` / `app.js` / `data.js` / `cc.js`.
 
 ## Verify before finishing — all three must pass
@@ -113,6 +113,13 @@ python3 -m http.server 8080        # http://localhost:8080
 ```
 
 Also sanity-check that `netlify.toml` still parses as TOML if you touch it.
+
+## Look (cinematic theme)
+
+The visual theme is the last block of `app.css` ("CINEMATIC THEME"): it redefines the colour/type
+tokens (near-black, acid-lime `--vio` accent, Inter Tight / Inter / JetBrains Mono) and restyles
+components on top of the older rules above it. Text on accent fills uses `--on-acc` (dark). Heroes are
+always dark and show a plate behind the title (`.hero-media`); new visitors default to dark.
 
 ## Motion
 
