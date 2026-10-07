@@ -55,7 +55,7 @@
   const LS = "histo_atlas_v1";
   const _saved = (() => { try { return JSON.parse(localStorage.getItem(LS) || "null"); } catch (e) { return null; } })();
   let state = Object.assign({ reviewed: {}, checks: {}, theme: null, view: "auto", detail: "key", studyTab: null, last: null }, _saved || {});
-  if (!state.theme) state.theme = "dark";   // cinematic look is dark-first; the toggle still offers light
+  if (!state.theme) state.theme = (window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
   const save = () => localStorage.setItem(LS, JSON.stringify(state));
   document.documentElement.dataset.theme = state.theme;
 
@@ -413,7 +413,6 @@
 
     let h = `<div class="wrap">
       <div class="hero">
-        ${s.images[0] ? `<div class="hero-media" aria-hidden="true"><i style="background-image:url('${imgSrc(s.images[0].file)}')"></i></div>` : ""}
         <div class="ghnum">${s.label}</div>
         <div class="kick">Slide ${s.label} of 57 · ${esc(s.system)}</div>
         <h2>${esc(s.title)}</h2>
@@ -618,15 +617,11 @@
     const p = progress();
     const C = 2 * Math.PI * 30, frac = p.tot ? p.rev / p.tot : 0;
     const last = state.last && byId[state.last];
-    // one plate per system for the reel; four of them cross-fade behind the hero
-    const reel = sys.map((sy) => { const s = D.slides.find((x) => x.system === sy && x.images.length); return s && { s, im: s.images[0] }; }).filter(Boolean);
-    const heroPlates = ["38", "3-5", "11", "46"].map((k) => byId[k] && byId[k].images[0] && byId[k].images[0].file).filter(Boolean);
     $("#main").innerHTML = `<div class="wrap">
       <div class="hero home-hero">
-        <div class="hero-media cycle" aria-hidden="true">${heroPlates.map((f) => `<i style="background-image:url('${imgSrc(f)}')"></i>`).join("")}</div>
         <div class="cells" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
         <div class="kick">Oral-exam companion · Histology III</div>
-        <h2>Every slide.<br>Every structure.<br><em>One atlas.</em></h2>
+        <h2>HistoAtlas — every slide, every structure,<br>every line of theory in one place</h2>
         <p style="max-width:640px;color:var(--muted);margin:4px 0 0">
           All <b>57 exam slides</b> from your notes, each with its own tab: what it is, how to spot it,
           theoretical background, mechanisms, histological appearance, embryology, an interactive ID checklist and
@@ -638,10 +633,6 @@
           <button class="btn" onclick="location.hash='#/stains'">★ Stains at a glance</button>
           <button class="btn ghost" onclick="var e=document.getElementById('syscards'); if(e) e.scrollIntoView({behavior:'smooth',block:'start'})">Study by system ↓</button>
         </div>
-      </div>
-      <div class="reel" aria-label="Plates">
-        <div class="reel-track">${[...reel, ...reel].map((r, i) => `<button class="reel-it"${i >= reel.length ? ' aria-hidden="true" tabindex="-1"' : ""} onclick="location.hash='#/slide/${r.s.id}'">
-          <img loading="lazy" src="${imgSrc(r.im.file)}" alt=""><span><b>${esc(r.s.label)}</b>${esc(r.s.title.replace(/\s*\([^)]*\)\s*$/, ""))}</span></button>`).join("")}</div>
       </div>
       <div class="stat-tiles">
         <div class="tile"><div class="n" data-to="57">57</div><div class="l">exam slides</div></div>
@@ -672,8 +663,7 @@
           const sl = D.slides.filter((s2) => s2.system === sy);
           const nst = sl.reduce((a, s2) => a + structOf(s2).length, 0);
           const nd = sl.reduce((a, s2) => a + doneOf(s2), 0);
-          const pic = (sl.find((s2) => s2.images.length) || { images: [] }).images[0];
-          return `<button class="syscard" data-sys="${esc(sy)}">${pic ? `<span class="sc-img" style="background-image:url('${imgSrc(pic.file)}')"></span>` : ""}
+          return `<button class="syscard" data-sys="${esc(sy)}">
             <span class="sc-top"><span class="sc-n">${sl.length}</span><span class="sc-l">slide${sl.length > 1 ? "s" : ""}</span></span>
             <b>${esc(sy)}</b>
             <span class="sc-m">${nst} structures to identify${nd ? ` · ${nd} done` : ""}</span>
